@@ -231,6 +231,16 @@ void commCenter(chanend rxChar,chanend mx, chanend step, chanend pwm, streaming 
 							
 							case CMD_DO_SCAN:
 								txChar <: ACK;
+								
+								// clear the image buffer
+								for (int y=0; y<2; y++)
+								{
+									for (int x=0; x<IMG_BUFF_SIZE; x++)
+									{
+										imageLineBuf[x][y] = 0;
+									}
+								}
+								
 								motCmd.command = CMD_DO_SCAN;
 								motCmd.P1 = make32(cmdBuf[CMD_DATA],cmdBuf[CMD_DATA+1],cmdBuf[CMD_DATA+2],cmdBuf[CMD_DATA+3]);  // x steps								
 								motCmd.P2 = make32(cmdBuf[CMD_DATA+4],cmdBuf[CMD_DATA+5],cmdBuf[CMD_DATA+6],cmdBuf[CMD_DATA+7]); // y rows
