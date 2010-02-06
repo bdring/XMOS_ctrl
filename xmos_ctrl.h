@@ -23,6 +23,7 @@ in port p_button_1 = XS1_PORT_1L;
 #define DIR_PIN_BEFORE_STEP 	30 // 300ns time after dir change before pulse 
 #define THREE_SECS				TMR_SPEED * 3
 #define COMM_TIMEOUT 			TMR_SPEED  // one second 
+
 // for the UART
 #define BIT_RATE 		57600
 #define BIT_TIME 		TMR_SPEED / BIT_RATE
@@ -37,15 +38,19 @@ in port p_button_1 = XS1_PORT_1L;
 #define MAX_REQUESTED_POWER		255
 #define SCAN_FULL_SPEED_VAL 	255  // This indicates full speed on the scan...for power calc purposes
 
-
+// stepper motor info
 #define X_AXIS				0
 #define Y_AXIS				1
+#define Z_AXIS				2
+#define AXIS_COUNT			3
 
-// define the I/O nits for the axes
+// define the I/O bits for the axes
 #define X_STEP_BIT			1
 #define X_DIR_BIT			2
 #define Y_STEP_BIT			4
 #define Y_DIR_BIT			8
+#define Z_STEP_BIT			16
+#define Z_DIR_BIT			32
 
 // protocol headers
 #define SOH	0x01
@@ -94,6 +99,7 @@ typedef struct motVars
 	unsigned int P2;
 	signed int P3;
 	signed int P4;
+	signed int P5;
 }mot;
 
 

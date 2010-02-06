@@ -50,7 +50,7 @@ int main() {
 	streaming chan txChar;
 	chan step;
 	
-	printstr("\nXMOS Engaving Controller 1.2.0.0");
+	printstr("\nXMOS Engaving Controller 1.3.0.0");
 		
 	// the following functions run on parallel threads
   	par
@@ -59,7 +59,6 @@ int main() {
 	  pulseEngine(motIO, mx, step);
 	  UART(uartRx, BIT_TIME, uartTx, BIT_TIME, rxChar, txChar);
 	  commCenter(rxChar,mx, step, pwmVal, txChar);
-	  
   	}
 	
 	while(1)
@@ -91,7 +90,7 @@ void commCenter(chanend rxChar,chanend mx, chanend step, chanend pwm, streaming 
 	unsigned int currentXPixel;	  // the current X pixel we are on
 	unsigned int currentYPixel;   // the current Y Pixel we are on
 	
-	unsigned int lastBufferedRow;
+	//unsigned int lastBufferedRow;
 	
 	int maxSpeed;				  // this is the maxX speed.  It is compared with current speed to set power
 	unsigned char pixelVal;		  // the grayscale (0-255) of the current pixel
@@ -224,8 +223,8 @@ void commCenter(chanend rxChar,chanend mx, chanend step, chanend pwm, streaming 
 								motCmd.command = CMD_MOVE_TO;
 								motCmd.P3 = make32(cmdBuf[CMD_DATA],cmdBuf[CMD_DATA+1],cmdBuf[CMD_DATA+2],cmdBuf[CMD_DATA+3]);
 								motCmd.P4 = make32(cmdBuf[CMD_DATA+4],cmdBuf[CMD_DATA+5],cmdBuf[CMD_DATA+6],cmdBuf[CMD_DATA+7]);
-								//printintln(motCmd.P3);							
-								//printintln(motCmd.P4);
+								motCmd.P5 = make32(cmdBuf[CMD_DATA+8],cmdBuf[CMD_DATA+9],cmdBuf[CMD_DATA+10],cmdBuf[CMD_DATA+11]);
+								
 								mx <: motCmd;
 							break;
 							
@@ -283,12 +282,8 @@ void commCenter(chanend rxChar,chanend mx, chanend step, chanend pwm, streaming 
 							}						
 							bGotHeader = FALSE;
 							bufPos = 0;
-							
 						}
-						
 					}
-					
-					
 				}
 				
 				//printhex(rx);
@@ -556,13 +551,13 @@ void pulseEngine(out port motionIO, chanend mx, chanend step)
 	
 	int axis;
 	
-	axisParameters axisParams[2];  // 
+	axisParameters axisParams[AXIS_COUNT];  // 
 	
 	stepInfo currentStep;
 		
 	mot myCommand;
 	
-	for (axis=0; axis<2; axis++)
+	for (axis=0; axis<AXIS_COUNT; axis++)
 	{
 		axisParams[axis].currentLocation = 0;
 		axisParams[axis].currentSpeed = 0;
@@ -588,18 +583,22 @@ void pulseEngine(out port motionIO, chanend mx, chanend step)
 					case CMD_E_STOP:
 						eStop = TRUE;
 						bScanning = FALSE;
-						resetAxis(axisParams[X_AXIS], TRUE);
-						resetAxis(axisParams[Y_AXIS], TRUE );
+						for (axis=0; axis<AXIS_COUNT; axis++)
+						{
+							resetAxis(axisParams[axis], TRUE);
+						}
 					break;
 					
 					case CMD_E_STP_CLEAR:
 						eStop = FALSE;
-						resetAxis(axisParams[X_AXIS], FALSE);
-						resetAxis(axisParams[Y_AXIS], FALSE);
+						for (axis=0; axis<AXIS_COUNT; axis++)
+						{
+							resetAxis(axisParams[X_AXIS], FALSE);
+						}						
 					break;
 					
 					case CMD_SET_AXIS_PARAMS:
-						if (myCommand.P3 < 2)  // make sure it is a valid axis
+						if (myCommand.P3 < AXIS_COUNT)  // make sure it is a valid axis
 						{							
 							setAxisParams(myCommand.P1, myCommand.P2, axisParams[myCommand.P3]);	
 						}
@@ -610,14 +609,16 @@ void pulseEngine(out port motionIO, chanend mx, chanend step)
 						{
 						case X_AXIS:
 						case Y_AXIS:
+						case Z_AXIS:
 							axisParams[myCommand.P1].currentLocation = 0;
 							resetAxis(axisParams[myCommand.P1], TRUE);
 						break;
 						case 99:
-							axisParams[X_AXIS].currentLocation = 0;
-							resetAxis(axisParams[X_AXIS], TRUE);
-							axisParams[Y_AXIS].currentLocation = 0;
-							resetAxis(axisParams[Y_AXIS], TRUE);
+							for (axis=0; axis<AXIS_COUNT; axis++)
+							{
+								axisParams[axis].currentLocation = 0;
+								resetAxis(axisParams[axis], TRUE);
+							}
 							
 						break;
 						}
@@ -629,15 +630,16 @@ void pulseEngine(out port motionIO, chanend mx, chanend step)
 						{
 						case X_AXIS:							
 						case Y_AXIS:
+						case Z_AXIS:							
 							resetAxis(axisParams[myCommand.P1], FALSE);
 							setMoveParams(0, axisParams[myCommand.P1]);
 						break;
 						case 99:
-							resetAxis(axisParams[X_AXIS], FALSE);
-							setMoveParams(0, axisParams[X_AXIS]);
-							
-							resetAxis(axisParams[Y_AXIS], FALSE);
-							setMoveParams(0, axisParams[Y_AXIS]);
+							for (axis=0; axis<AXIS_COUNT; axis++)
+							{
+								resetAxis(axisParams[axis], FALSE);
+								setMoveParams(0, axisParams[axis]);
+							}							
 						break;
 						}
 						// setup the direction pins
@@ -650,6 +652,11 @@ void pulseEngine(out port motionIO, chanend mx, chanend step)
 							motPort |= Y_DIR_BIT;
 						else
 							motPort &= ~(Y_DIR_BIT);
+						
+						if (axisParams[Z_AXIS].motionDirection == DIRECTION_FORWARD)
+							motPort |= Z_DIR_BIT;
+						else
+							motPort &= ~(Z_DIR_BIT); 
 						
 						motionIO <:  motPort;
 						// the direction pin needs to be on for 200nS before stepping per data sheet so move out the engTime timer	
@@ -668,9 +675,11 @@ void pulseEngine(out port motionIO, chanend mx, chanend step)
 						
 						resetAxis(axisParams[X_AXIS], FALSE);
 						resetAxis(axisParams[Y_AXIS], FALSE);
+						resetAxis(axisParams[Z_AXIS], FALSE);
 						
 						setMoveParams(myCommand.P3, axisParams[X_AXIS]);						
 						setMoveParams(myCommand.P4, axisParams[Y_AXIS]);
+						setMoveParams(myCommand.P5, axisParams[Z_AXIS]);
 						
 						
 						
@@ -685,7 +694,10 @@ void pulseEngine(out port motionIO, chanend mx, chanend step)
 						else
 							motPort &= ~(Y_DIR_BIT); //0x7; // 0111 y pin dir ref
 						
-						
+						if (axisParams[Z_AXIS].motionDirection == DIRECTION_FORWARD)
+							motPort |= Z_DIR_BIT;
+						else
+							motPort &= ~(Z_DIR_BIT); 
 						
 						motionIO <:  motPort;
 						// the direction pin needs to be on for 200nS before stepping per data sheet so move out the engTime timer	
@@ -697,6 +709,8 @@ void pulseEngine(out port motionIO, chanend mx, chanend step)
 							printint(axisParams[X_AXIS].destination);
 							printstr("\nGoto Y:");
 							printint(axisParams[Y_AXIS].destination);
+							printstr("\nGoto Z:");
+							printint(axisParams[Z_AXIS].destination);
 						#endif
 							
 					break;
@@ -749,10 +763,11 @@ void pulseEngine(out port motionIO, chanend mx, chanend step)
 				{
 					resetAxis(axisParams[X_AXIS], TRUE);
 					resetAxis(axisParams[Y_AXIS], TRUE);
+					resetAxis(axisParams[Z_AXIS], TRUE);
 					continue;
 				}
 					
-					for (axis = X_AXIS; axis < 2; axis++)					
+					for (axis = X_AXIS; axis < AXIS_COUNT; axis++)					
 					{	
 						
 						if (axisParams[axis].currentLocation != axisParams[axis].destination)
@@ -780,10 +795,19 @@ void pulseEngine(out port motionIO, chanend mx, chanend step)
 							if (axisParams[axis].accumulator > SPEED_OFFSET) // this basically tests the 24th bit...(keeps it 8-bit)
 							{
 								// Turn step pin on
-								if (axis == X_AXIS)
+								switch (axis)
+								{
+								case X_AXIS:
 									motPort |= X_STEP_BIT; // turn on the X step pin
-								else
-									motPort |= Y_STEP_BIT; // turn on the X step pin
+								break;
+								case Y_AXIS:
+									motPort |= Y_STEP_BIT; // turn on the Y step pin
+								break;
+								case Z_AXIS:
+									motPort |= Z_STEP_BIT; // turn on the Z step pin
+								break;
+								}
+																
 								
 								// update the current location and reset the accululator
 								axisParams[axis].currentLocation += axisParams[axis].motionDirection;
@@ -850,7 +874,7 @@ void pulseEngine(out port motionIO, chanend mx, chanend step)
 						pulseTmr :> pulseTime;
 						pulseTime += PULSE_ON_TIME;
 						pulseTmr when timerafter(pulseTime) :> void;
-						motPort &= ~(X_STEP_BIT + Y_STEP_BIT); //0xA; // 1010 // turn off x & y step pins
+						motPort &= ~(X_STEP_BIT + Y_STEP_BIT + Z_STEP_BIT); //0xA; // 1010 // turn off step pins
 						motionIO <:  motPort; // send it to the port	
 						
 						if (bScanning)
